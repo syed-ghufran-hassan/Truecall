@@ -17,6 +17,8 @@
 
 ;; Data Variables
 (define-data-var event-nonce uint u0)
+;; Add this for iteration
+(define-data-var loop-index uint u0)
 
 ;; Outcome types: u1 = home win, u2 = draw, u3 = away win
 (define-constant outcome-home u1)
@@ -110,7 +112,9 @@
     { event-id: uint }
 )
 
-;; Read-only functions
+;; =====================================================
+;; READ-ONLY FUNCTIONS
+;; =====================================================
 
 ;; Get event details
 (define-read-only (get-event (event-id uint))
@@ -195,7 +199,134 @@
     )
 )
 
-;; Public functions
+;; =====================================================
+;; PRIVATE FUNCTIONS
+;; =====================================================
+
+;; Private helper function to award points to a participant
+(define-private (award-points-to-participant (event-id uint) (participant principal) (final-result uint))
+    (let
+        (
+            (prediction (map-get? predictions { event-id: event-id, participant: participant }))
+            (stats (get-user-stats participant))
+        )
+        (match prediction
+            pred
+            (if (is-eq (get predicted-outcome pred) final-result)
+                ;; Award points for correct prediction
+                (begin
+                    (map-set leaderboard
+                        { participant: participant }
+                        {
+                            total-points: (+ (get total-points stats) points-per-correct-prediction),
+                            correct-predictions: (+ (get correct-predictions stats) u1),
+                            total-predictions: (get total-predictions stats)
+                        }
+                    )
+                    true
+                )
+                ;; No points for incorrect prediction
+                true
+            )
+            ;; No prediction found, do nothing
+            true
+        )
+    )
+)
+
+;; Process a single participant by index
+(define-private (process-participant-at-index (event-id uint) (final-result uint) (index uint))
+    (match (get-participant-at-index event-id index)
+        participant
+        (award-points-to-participant event-id participant final-result)
+        true
+    )
+)
+
+;; Process all participants using a simple iterative approach (no recursion)
+(define-private (process-all-participants (event-id uint) (final-result uint) (total-count uint))
+    (let
+        (
+            (index u0)
+        )
+        ;; Process each participant using a let binding and repeated calls
+        (if (> total-count u0)
+            (begin
+                ;; Process participant 0
+                (process-participant-at-index event-id final-result u0)
+                (if (> total-count u1)
+                    (begin
+                        ;; Process participant 1
+                        (process-participant-at-index event-id final-result u1)
+                        (if (> total-count u2)
+                            (begin
+                                ;; Process participant 2
+                                (process-participant-at-index event-id final-result u2)
+                                (if (> total-count u3)
+                                    (begin
+                                        ;; Process participant 3
+                                        (process-participant-at-index event-id final-result u3)
+                                        (if (> total-count u4)
+                                            (begin
+                                                ;; Process participant 4
+                                                (process-participant-at-index event-id final-result u4)
+                                                (if (> total-count u5)
+                                                    (begin
+                                                        ;; Process participant 5
+                                                        (process-participant-at-index event-id final-result u5)
+                                                        (if (> total-count u6)
+                                                            (begin
+                                                                ;; Process participant 6
+                                                                (process-participant-at-index event-id final-result u6)
+                                                                (if (> total-count u7)
+                                                                    (begin
+                                                                        ;; Process participant 7
+                                                                        (process-participant-at-index event-id final-result u7)
+                                                                        (if (> total-count u8)
+                                                                            (begin
+                                                                                ;; Process participant 8
+                                                                                (process-participant-at-index event-id final-result u8)
+                                                                                (if (> total-count u9)
+                                                                                    (begin
+                                                                                        ;; Process participant 9
+                                                                                        (process-participant-at-index event-id final-result u9)
+                                                                                        true
+                                                                                    )
+                                                                                    true
+                                                                                )
+                                                                            )
+                                                                            true
+                                                                        )
+                                                                    )
+                                                                    true
+                                                                )
+                                                            )
+                                                            true
+                                                        )
+                                                    )
+                                                    true
+                                                )
+                                            )
+                                            true
+                                        )
+                                    )
+                                    true
+                                )
+                            )
+                            true
+                        )
+                    )
+                    true
+                )
+            )
+            true
+        )
+    )
+)
+
+;; =====================================================
+;; PUBLIC FUNCTIONS
+;; =====================================================
 
 ;; Create a new event
 (define-public (create-event 
@@ -424,7 +555,7 @@
         )
         
         ;; Automatically award points to all participants
-        (process-participants event-id final-result u0 participant-count)
+        (process-all-participants event-id final-result participant-count)
         
         (ok true)
     )
@@ -480,48 +611,5 @@
             (merge event { oracle: new-oracle })
         )
         (ok true)
-    )
-)
-
-;; Private helper function to award points to a participant
-(define-private (award-points-to-participant (event-id uint) (participant principal) (final-result uint))
-    (let
-        (
-            (prediction (map-get? predictions { event-id: event-id, participant: participant }))
-            (stats (get-user-stats participant))
-        )
-        (match prediction
-            pred
-            (if (is-eq (get predicted-outcome pred) final-result)
-                ;; Award points for correct prediction
-                (map-set leaderboard
-                    { participant: participant }
-                    {
-                        total-points: (+ (get total-points stats) points-per-correct-prediction),
-                        correct-predictions: (+ (get correct-predictions stats) u1),
-                        total-predictions: (get total-predictions stats)
-                    }
-                )
-                ;; No points for incorrect prediction
-                true
-            )
-            ;; No prediction found, do nothing
-            true
-        )
-    )
-)
-
-;; Private recursive helper to process all participants
-(define-private (process-participants (event-id uint) (final-result uint) (current-index uint) (total-count uint))
-    (if (< current-index total-count)
-        (begin
-            (match (get-participant-at-index event-id current-index)
-                participant
-                (award-points-to-participant event-id participant final-result)
-                true
-            )
-            (process-participants event-id final-result (+ current-index u1) total-count)
-        )
-        true
     )
 )
